@@ -66,20 +66,20 @@ void doit(int fd)
 
   is_static = parse_uri(uri, filename, cgiargs);
   if (stat(filename, &sbuf) < 0){
-    clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file")
+    clienterror(fd, filename, "404", "Not found", "Tiny couldn't find this file");
     return;
   }
 
   if (is_static){
     if (!(S_ISREG(sbuf.st_mode)) || !(S_IRUSR & sbuf.st_mode)) {
-      clienterror(fd, filename, "403", "Forbideen", "Tiny could't read the file");
+      clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't read the file");
       return;
     }
     serve_static(fd, filename, sbuf.st_size);
   }
   else {
     if (!(S_ISREG(sbuf.st_mode)) || !(S_IXUSR & sbuf.st_mode)) {
-      clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program")
+      clienterror(fd, filename, "403", "Forbidden", "Tiny couldn't run the CGI program");
       return;
     }
     serve_dynamic(fd, filename, cgiargs);
@@ -89,20 +89,25 @@ void doit(int fd)
 void clienterror(int fd, char *cause, char *errnum, char *shortmsg, char *longmsg)
 {
   char buf[MAXLINE], body[MAXBUF];
+  int body_len;
 
   /* Build the HTTP response body */
-  sprintf(body, "<html><title>Tiny Error</title>");
-  sprintf(body, "%s<body bgcolor=""ffffff"">\r\n", body);
-  sprintf(body, "%s%s: %s\r\n", body, errnum, shortmsg);
-  sprintf(body, "%s<p>%s: %s\r\n", body, longmsg, cause);
-  sprintf(body, "%s<hr><em>The Tiny Web server</em>\r\n", body);
+  body_len = snprintf(body, sizeof(body), "<html><title>Tiny Error</title>");
+  body_len += snprintf(body + body_len, sizeof(body) - body_len,
+                       "<body bgcolor=\"ffffff\">\r\n");
+  body_len += snprintf(body + body_len, sizeof(body) - body_len,
+                       "%s: %s\r\n", errnum, shortmsg);
+  body_len += snprintf(body + body_len, sizeof(body) - body_len,
+                       "<p>%s: %s\r\n", longmsg, cause);
+  body_len += snprintf(body + body_len, sizeof(body) - body_len,
+                       "<hr><em>The Tiny Web server</em>\r\n");
 
   /* Print the HTTP response */
-  sprintf(buf, "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
+  snprintf(buf, sizeof(buf), "HTTP/1.0 %s %s\r\n", errnum, shortmsg);
   Rio_writen(fd, buf, strlen(buf));
-  sprintf(buf, "Content-type: text/html\r\n");
+  snprintf(buf, sizeof(buf), "Content-type: text/html\r\n");
   Rio_writen(fd, buf, strlen(buf));
-  sprintf(buf, "Content-length: %d\r\n\r\n", (int)strlen(body));
+  snprintf(buf, sizeof(buf), "Content-length: %d\r\n\r\n", (int)strlen(body));
   Rio_writen(fd, buf, strlen(buf));
   Rio_writen(fd, body, strlen(body));
 }
@@ -113,8 +118,8 @@ void read_requesthdrs(rio_t *rp)
 
   Rio_readlineb(rp, buf, MAXLINE);
   while(strcmp(buf, "\r\n")) {
-    Rio_readlineb(rp, buf, MAXLINE);
     printf("%s", buf);
+    Rio_readlineb(rp, buf, MAXLINE);
   }
   return;
 }
@@ -159,8 +164,9 @@ void serve_static(int fd, char *filename, int filesize)
   Rio_writen(fd, buf, strlen(buf));
   sprintf(buf, "Content-length: %d\r\n", filesize);
   Rio_writen(fd, buf, strlen(buf));
-  sprintf(buf, "Content-type: %s\r\n\r\n", filetype);
-  Rio_writen(fd, buf, strlen(buf));
+  Rio_writen(fd, "Content-type: ", strlen("Content-type: "));
+  Rio_writen(fd, filetype, strlen(filetype));
+  Rio_writen(fd, "\r\n\r\n", strlen("\r\n\r\n"));
 
   srcfd = Open(filename, O_RDONLY, 0);
   srcp = Mmap(0, filesize, PROT_READ, MAP_PRIVATE, srcfd, 0);
